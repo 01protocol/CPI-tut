@@ -1,0 +1,19 @@
+[programs.devnet]
+zo_abi_example = "Eg8fBwr5N3P9HTUZsKJ5LZP3jVRgBJcrnvAcY35G5rTw"
+
+[registry]
+url = "https://anchor.projectserum.com"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+kill-validator = "lsof -i tcp:8899 | awk 'NR>1 {print $2}' | uniq | xargs kill"
+build-client = "cd ./deps/client/ && npm install && npm run build && cd ../.."
+check-idl = "ts-node scripts/check-idl.ts"
+sync-idl = "rm -Rf ./deps/client/src/types && cp -R ./target/types ./deps/client/src"
+
+[test]
+startup_wait = 10000

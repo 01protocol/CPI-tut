@@ -1,0 +1,22 @@
+[package]
+name = "zo_abi_example"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "zo_abi_example"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+devnet = []
+
+[dependencies]
+anchor-lang = "0.21.0"
+zo = {package = "zo-abi", version = "0.4.0-beta.2", features = ["cpi", "devnet"]}
+anchor-spl = { version = "0.21.0", features = ["dex"] }
