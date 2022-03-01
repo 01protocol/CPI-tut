@@ -18,5 +18,5 @@ devnet = []
 
 [dependencies]
 anchor-lang = "0.21.0"
-zo = {package = "zo-abi", version = "0.4.0-beta.2", features = ["cpi", "devnet"]}
+zo = {package = "zo-abi", version = "0.4.0-beta", features = ["cpi", "devnet"]}
 anchor-spl = { version = "0.21.0", features = ["dex"] }

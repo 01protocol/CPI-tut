@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use zo::{self, cpi::accounts::*, program::ZoAbi as Zo, *};
+use std::mem::size_of;
 
 declare_id!("Eg8fBwr5N3P9HTUZsKJ5LZP3jVRgBJcrnvAcY35G5rTw");
 
@@ -10,6 +11,8 @@ pub mod zo_abi_example {
 
     pub fn do_create_margin(cx: Context<DoCreateMargin>, zo_margin_nonce: u8) -> ProgramResult {
         msg!("Calling create_margin.rs through CPI");
+
+        msg!("margin {:?}",cx.accounts.zo_program_margin.to_account_info());
 
         let cpi_program = cx.accounts.zo_program.to_account_info();
         let cpi_accounts = cpi::accounts::CreateMargin {
@@ -33,6 +36,8 @@ pub mod zo_abi_example {
             "state_signer {}",
             cx.accounts.state_signer.to_account_info().key()
         );
+
+        msg!("margin {:?}",cx.accounts.zo_program_margin.to_account_info());
 
         let cpi_program = cx.accounts.zo_program.to_account_info();
         let cpi_accounts = cpi::accounts::Deposit {
@@ -82,12 +87,12 @@ pub struct DoCreateMargin<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
     #[account(mut)]
-    pub zo_program_state: AccountInfo<'info>,
+    pub zo_program_state: AccountLoader<'info, State>,
     #[account(mut)]
-    pub zo_program_margin: UncheckedAccount<'info>,
+    pub zo_program_margin: AccountLoader<'info, Margin>,
     pub zo_program: Program<'info, Zo>,
     #[account(mut)]
-    pub control: UncheckedAccount<'info>,
+    pub control: AccountLoader<'info, Control>,
     pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
 }
@@ -108,8 +113,7 @@ pub struct DoDeposit<'info> {
     pub cache: AccountLoader<'info, Cache>,
     #[account(
         mut,
-        constraint = {token_account.owner == *authority.key},
-        constraint = token_account.amount >= amount,
+        constraint = token_account.owner == *authority.key,
     )]
     pub token_account: Account<'info, TokenAccount>,
     #[account(mut)]
@@ -135,8 +139,7 @@ pub struct DoWithdraw<'info> {
     pub control: AccountLoader<'info, Control>,
     #[account(
         mut,
-        constraint = {token_account.owner == *authority.key},
-        constraint = token_account.amount >= amount,
+        constraint = token_account.owner == *authority.key,
     )]
     pub token_account: Account<'info, TokenAccount>,
     #[account(mut)]

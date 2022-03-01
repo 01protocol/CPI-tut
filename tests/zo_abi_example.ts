@@ -27,7 +27,7 @@ import idl from "../target/idl/zo_abi_example.json";
 import { TOKEN_PROGRAM_ID } from "@project-serum/serum/lib/token-instructions";
 
 const SETTINGS = {
-  connection: "https://api.devnet.rpcpool.com/714dcbee786eb2c4bc6dfc98826b",
+  connection: "https://api.devnet.solana.com",
   zoPid: new PublicKey("Zo1ThtSHMh9tZGECwBDL81WJRL6s3QTHf733Tyko7KQ"),
   zoState: new PublicKey("KwcWW7WvgSXLJcyjKZJBHLbfriErggzYHpjS9qjVD5F"),
   usdcMint: new PublicKey("7UT1javY6X1M9R2UrPGrwcZ78SX3huaXyETff5hm5YdX"),
@@ -69,7 +69,7 @@ describe("zo_abi_example", () => {
 
     ts.state = await State.load(ts.zoProgram, SETTINGS.zoState);
 
-    console.log("user wallet:", ts.user.wallet.publicKey.toString());
+    console.log("user wallet: ", ts.user.wallet.publicKey.toString());
 
     ts.stateUSDCVault = ts.state.getVaultCollateralByMint(SETTINGS.usdcMint)[0];
   });
@@ -91,9 +91,10 @@ describe("zo_abi_example", () => {
       ),
     ]);
 
-    if (
-      null == (await ts.userProgram.provider.connection.getAccountInfo(key))
-    ) {
+    console.log(key.toString());
+    console.log(nonce);
+
+    if (null == (await ts.program.provider.connection.getAccountInfo(key))) {
       //calling CreateMaergin through CPI call
       const tx = await ts.program.rpc.doCreateMargin(nonce, {
         accounts: {
@@ -131,7 +132,8 @@ describe("zo_abi_example", () => {
 
     ts.stateUSDCVault = ts.state.getVaultCollateralByMint(SETTINGS.usdcMint)[0];
 
-    console.log("zo program USDC account", ts.stateUSDCVault.toString());
+    console.log("user Margin account: ", ts.userMargin.pubkey.toString());
+    console.log("zo program USDC vault: ", ts.stateUSDCVault.toString());
 
     //checking that ecerything is correct
     assert.ok(ts.userMargin.data.authority.equals(ts.user.wallet.publicKey));
