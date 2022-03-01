@@ -12,10 +12,8 @@ pub mod zo_abi_example {
     pub fn do_create_margin(cx: Context<DoCreateMargin>, zo_margin_nonce: u8) -> ProgramResult {
         msg!("Calling create_margin.rs through CPI");
 
-        msg!("margin {:?}",cx.accounts.zo_program_margin.to_account_info());
-
         let cpi_program = cx.accounts.zo_program.to_account_info();
-        let cpi_accounts = cpi::accounts::CreateMargin {
+        let cpi_accounts = zo::cpi::accounts::CreateMargin {
             state: cx.accounts.zo_program_state.to_account_info(),
             payer: cx.accounts.authority.to_account_info(),
             authority: cx.accounts.authority.to_account_info(),
@@ -32,15 +30,8 @@ pub mod zo_abi_example {
     pub fn do_deposit(cx: Context<DoDeposit>, amount: u64) -> ProgramResult {
         msg!("Calling deposit.rs through CPI with amount {}", amount);
 
-        msg!(
-            "state_signer {}",
-            cx.accounts.state_signer.to_account_info().key()
-        );
-
-        msg!("margin {:?}",cx.accounts.zo_program_margin.to_account_info());
-
         let cpi_program = cx.accounts.zo_program.to_account_info();
-        let cpi_accounts = cpi::accounts::Deposit {
+        let cpi_accounts = zo::cpi::accounts::Deposit {
             state: cx.accounts.zo_program_state.to_account_info(),
             state_signer: cx.accounts.state_signer.to_account_info(),
             cache: cx.accounts.cache.to_account_info(),
@@ -57,14 +48,8 @@ pub mod zo_abi_example {
     pub fn do_withdraw(cx: Context<DoWithdraw>, amount: u64) -> ProgramResult {
         msg!("Calling withdraw.rs through CPI with amount {}", amount);
 
-        msg!("{}", cx.accounts.zo_program_state.to_account_info().key());
-        msg!(
-            "state_signer {}",
-            cx.accounts.state_signer.to_account_info().key()
-        );
-
         let cpi_program = cx.accounts.zo_program.to_account_info();
-        let cpi_accounts = cpi::accounts::Withdraw {
+        let cpi_accounts = zo::cpi::accounts::Withdraw {
             state: cx.accounts.zo_program_state.to_account_info(),
             state_signer: cx.accounts.state_signer.to_account_info(),
             cache: cx.accounts.cache.to_account_info(),
