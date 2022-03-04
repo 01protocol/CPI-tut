@@ -1,7 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
-use zo::{self, cpi::accounts::*, program::ZoAbi as Zo, *};
-use std::mem::size_of;
+use zo::{self, program::ZoAbi as Zo, State, Margin, Control, Cache};
 
 declare_id!("Eg8fBwr5N3P9HTUZsKJ5LZP3jVRgBJcrnvAcY35G5rTw");
 
@@ -87,12 +86,10 @@ pub struct DoCreateMargin<'info> {
 pub struct DoDeposit<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
-    #[account(mut)]
     pub zo_program_state: AccountLoader<'info, State>,
     #[account(mut)]
     pub zo_program_margin: AccountLoader<'info, Margin>,
     pub zo_program: Program<'info, Zo>,
-    #[account(mut)]
     pub state_signer: UncheckedAccount<'info>,
     #[account(mut, address = zo_program_state.load()?.cache)]
     pub cache: AccountLoader<'info, Cache>,

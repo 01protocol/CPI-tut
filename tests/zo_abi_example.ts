@@ -1,5 +1,5 @@
 import * as anchor from "@project-serum/anchor";
-import { BN, Idl, Program } from "@project-serum/anchor";
+import { BN, Idl} from "@project-serum/anchor";
 import {
   Keypair,
   PublicKey,
@@ -11,19 +11,14 @@ import {
   Control,
   CONTROL_ACCOUNT_SIZE,
   createProgram,
-  IDL,
   Margin,
   State,
   USDC_DECIMALS,
 } from "@zero_one/client";
 import * as splToken from "@solana/spl-token";
-import { ZoAbiExample } from "../target/types/zo_abi_example";
 import assert from "assert";
 
-const MINT_ACCOUNT_SIZE = 82;
-
-//@ts-ignore
-import idl from "../target/idl/zo_abi_example.json";
+import idl = require("../target/idl/zo_abi_example.json");
 import { TOKEN_PROGRAM_ID } from "@project-serum/serum/lib/token-instructions";
 
 const SETTINGS = {
@@ -34,23 +29,23 @@ const SETTINGS = {
   solMint: new PublicKey("So11111111111111111111111111111111111111112"),
   btcMint: new PublicKey("3n3sMJMnZhgNDaxp6cfywvjHLrV1s34ndfa6xAaYvpRs"),
   programPid: new PublicKey("Eg8fBwr5N3P9HTUZsKJ5LZP3jVRgBJcrnvAcY35G5rTw"),
-  user: new PublicKey("45vmGc9sVW52Tb4F77Xt3X5Ft1PVSzS3HAyno2E166zN"),
-  userUSDC: new PublicKey("C8WvEkicXhE46DQrq2CDx2MdPoGzfgJSwo868r8Vjr1M"),
 };
-const userAcc = Keypair.fromSecretKey(
-  new Uint8Array([
-    77, 112, 26, 232, 38, 172, 118, 8, 248, 64, 234, 108, 113, 112, 246, 28,
-    151, 52, 23, 230, 237, 233, 185, 47, 75, 152, 125, 152, 33, 13, 146, 42, 45,
-    214, 44, 160, 178, 170, 37, 49, 172, 83, 180, 75, 129, 161, 66, 252, 81, 4,
-    12, 68, 245, 126, 51, 201, 102, 9, 169, 210, 160, 103, 116, 219,
-  ])
-);
 
 describe("zo_abi_example", () => {
   //teststate
   const ts: any = {};
 
   it("Fetching the Zo state stuff and creating user", async () => {
+    const userAcc = Keypair.fromSecretKey(
+      Buffer.from(
+        JSON.parse(
+          require("fs").readFileSync(process.env.USER_WALLET, {
+            encoding: "utf-8",
+          })
+        )
+      )
+    );
+
     const provider = new anchor.Provider(
       new anchor.web3.Connection(SETTINGS.connection),
       // @ts-ignore
@@ -65,13 +60,22 @@ describe("zo_abi_example", () => {
 
     ts.program = new anchor.Program(idl as Idl, SETTINGS.programPid, ts.user);
 
-    ts.zoProgram = createProgram(provider, Cluster.Devnet);
+    console.log("user wallet: ", ts.user.wallet.publicKey.toString());
+    ts.userUSDC = await splToken.getOrCreateAssociatedTokenAccount(
+      ts.user.connection,
+      ts.user.wallet,
+      SETTINGS.usdcMint,
+      ts.user.wallet.publicKey
+    );
+
+    console.log("user token account", ts.userUSDC.address.toString());
+
+    ts.zoProgram = createProgram(ts.user, Cluster.Devnet);
 
     ts.state = await State.load(ts.zoProgram, SETTINGS.zoState);
 
-    console.log("user wallet: ", ts.user.wallet.publicKey.toString());
-
     ts.stateUSDCVault = ts.state.getVaultCollateralByMint(SETTINGS.usdcMint)[0];
+    console.log("zo program USDC vault: ", ts.stateUSDCVault.toString());
   });
 
   it("Allows users to create margin from 01_exchange", async () => {
@@ -91,10 +95,9 @@ describe("zo_abi_example", () => {
       ),
     ]);
 
-    console.log(key.toString());
-    console.log(nonce);
-
-    if (null == (await ts.program.provider.connection.getAccountInfo(key))) {
+    if (await ts.program.provider.connection.getAccountInfo(key)) {
+      console.log("Margin account already exists");
+    } else {
       //calling CreateMaergin through CPI call
       const tx = await ts.program.rpc.doCreateMargin(nonce, {
         accounts: {
@@ -130,30 +133,28 @@ describe("zo_abi_example", () => {
       ts.userMargin.data.control
     );
 
-    ts.stateUSDCVault = ts.state.getVaultCollateralByMint(SETTINGS.usdcMint)[0];
-
     console.log("user Margin account: ", ts.userMargin.pubkey.toString());
-    console.log("zo program USDC vault: ", ts.stateUSDCVault.toString());
 
     //checking that ecerything is correct
     assert.ok(ts.userMargin.data.authority.equals(ts.user.wallet.publicKey));
+    assert.ok(ts.userControl.data.authority.equals(ts.user.wallet.publicKey));
     assert.equal(ts.userMargin.data.rawCollateral.length, 3);
     assert.equal(ts.userMargin.data.actualCollateral.length, 3);
     assert.ok(ts.userMargin.data.control.equals(ts.userControl.pubkey));
-    assert.ok(ts.userControl.data.authority.equals(ts.user.wallet.publicKey));
   });
 
   it("allows users to make a deposit USDC", async () => {
     const depositAmount = new BN(40 * 10 ** USDC_DECIMALS);
+    console.log("depositing amount: ", depositAmount.toString());
 
-    let tokenAcc = await splToken.getOrCreateAssociatedTokenAccount(
-      ts.program.provider.connection,
-      ts.user.wallet,
-      SETTINGS.usdcMint,
-      ts.user.wallet.publicKey
-    );
+    const fetchBalanceBefore = await ts.program.provider.connection.getTokenAccountBalance(ts.userUSDC.address);
+    console.log("user USDC balance before deposit: ", fetchBalanceBefore.value.amount);
 
-    console.log("user USDC balance before deposit: ", tokenAcc.amount);
+    await ts.userMargin.refresh();
+    console.log("user Margin USDC balance before deposit: ", ts.userMargin.balances.USDC.n.toString());
+
+    const fetchVaultBalanceBefore = await ts.program.provider.connection.getTokenAccountBalance(ts.stateUSDCVault);
+    console.log("state vault USDC balance before deposit: ", fetchVaultBalanceBefore.value.amount);
 
     const tx = await ts.program.rpc.doDeposit(depositAmount, {
       accounts: {
@@ -163,34 +164,40 @@ describe("zo_abi_example", () => {
         zoProgram: SETTINGS.zoPid,
         cache: ts.state.cache.pubkey,
         stateSigner: ts.userMargin.state.signer,
-        tokenAccount: SETTINGS.userUSDC,
+        tokenAccount: ts.userUSDC.address,
         zoProgramVault: ts.stateUSDCVault,
         tokenProgram: TOKEN_PROGRAM_ID,
       },
     });
     await ts.program.provider.connection.confirmTransaction(tx, "finalized");
 
-    tokenAcc = await splToken.getOrCreateAssociatedTokenAccount(
-      ts.program.provider.connection,
-      ts.user.wallet,
-      SETTINGS.usdcMint,
-      ts.user.wallet.publicKey
-    );
+    const fetchBalanceAfter = await ts.program.provider.connection.getTokenAccountBalance(ts.userUSDC.address);
+    console.log("user USDC balance after deposit: ", fetchBalanceAfter.value.amount);
 
-    console.log("user USDC balance after deposit: ", tokenAcc.amount);
+    await ts.userMargin.refresh();
+    console.log("user Margin USDC balance after deposit: ", ts.userMargin.balances.USDC.n.toString());
+
+    const fetchVaultBalanceAfter = await ts.program.provider.connection.getTokenAccountBalance(ts.stateUSDCVault);
+    console.log("state vault USDC balance after deposit: ", fetchVaultBalanceAfter.value.amount);
+
+    assert.equal(fetchBalanceAfter.value.amount-fetchBalanceBefore.value.amount, -depositAmount.toNumber());
+    assert.equal(fetchVaultBalanceAfter.value.amount-fetchVaultBalanceBefore.value.amount, depositAmount.toNumber());
+
   });
 
   it("allows users to make a withdraw USDC", async () => {
     const withdrawAmount = new BN(20 * 10 ** USDC_DECIMALS);
+    
+    console.log("withdrawing amount: ", withdrawAmount.toString());
 
-    let tokenAcc = await splToken.getOrCreateAssociatedTokenAccount(
-      ts.program.provider.connection,
-      ts.user.wallet,
-      SETTINGS.usdcMint,
-      ts.user.wallet.publicKey
-    );
+    const fetchBalanceBefore = await ts.program.provider.connection.getTokenAccountBalance(ts.userUSDC.address);
+    console.log("user USDC balance before withdraw: ", fetchBalanceBefore.value.amount);
 
-    console.log("user USDC balance before withdraw: ", tokenAcc.amount);
+    await ts.userMargin.refresh();
+    console.log("user Margin USDC balance before withdraw: ", ts.userMargin.balances.USDC.n.toString());
+
+    const fetchVaultBalanceBefore = await ts.program.provider.connection.getTokenAccountBalance(ts.stateUSDCVault);
+    console.log("state vault USDC balance before withdraw: ", fetchVaultBalanceBefore.value.amount);
 
     const tx = await ts.program.rpc.doWithdraw(withdrawAmount, {
       accounts: {
@@ -201,20 +208,24 @@ describe("zo_abi_example", () => {
         control: ts.userMargin.control.pubkey,
         cache: ts.state.cache.pubkey,
         stateSigner: ts.userMargin.state.signer,
-        tokenAccount: SETTINGS.userUSDC,
+        tokenAccount: ts.userUSDC.address,
         zoProgramVault: ts.stateUSDCVault,
         tokenProgram: TOKEN_PROGRAM_ID,
       },
     });
     await ts.program.provider.connection.confirmTransaction(tx, "finalized");
 
-    tokenAcc = await splToken.getOrCreateAssociatedTokenAccount(
-      ts.program.provider.connection,
-      ts.user.wallet,
-      SETTINGS.usdcMint,
-      ts.user.wallet.publicKey
-    );
+    const fetchBalanceAfter = await ts.program.provider.connection.getTokenAccountBalance(ts.userUSDC.address);
+    console.log("user USDC balance after withdraw: ", fetchBalanceAfter.value.amount);
 
-    console.log("user USDC balance after withdraw: ", tokenAcc.amount);
+    await ts.userMargin.refresh();
+    console.log("user Margin USDC balance after withdraw: ", ts.userMargin.balances.USDC.n.toString());
+
+    const fetchVaultBalanceAfter = await ts.program.provider.connection.getTokenAccountBalance(ts.stateUSDCVault);
+    console.log("state vault USDC balance after withdraw: ", fetchVaultBalanceAfter.value.amount);
+
+    assert.equal(fetchBalanceAfter.value.amount-fetchBalanceBefore.value.amount, withdrawAmount.toNumber());
+    assert.equal(fetchVaultBalanceAfter.value.amount-fetchVaultBalanceBefore.value.amount, -withdrawAmount.toNumber());
+
   });
 });
